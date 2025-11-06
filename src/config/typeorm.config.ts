@@ -26,7 +26,7 @@ export const typeOrmAsyncConfig: TypeOrmModuleAsyncOptions = {
       ssl: dbSsl ? { rejectUnauthorized: false } : false,
       entities: [__dirname + '/../**/*.entity.{ts,js}'],
       migrations: [__dirname + '/../migrations/*.{ts,js}'],
-      synchronize: config.get<string>('ORM_SYNCHRONIZE') === 'true',
+      synchronize: true,
       logging: config.get<string>('ORM_LOGGING') === 'true',
       namingStrategy: new SnakeNamingStrategy(),
     };
