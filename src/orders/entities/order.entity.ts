@@ -26,7 +26,7 @@ export type OrderStatus =
   | 'failed';
 export type PaymentStatus = 'pending' | 'approved' | 'rejected' | 'refunded';
 
-@Entity('"order"')
+@Entity('orders')
 export class Order {
   @PrimaryGeneratedColumn('uuid') id: string;
 
