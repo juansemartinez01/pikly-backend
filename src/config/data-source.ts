@@ -7,11 +7,7 @@ const parseBool = (v?: string) =>
 
 export default new DataSource({
   type: 'postgres',
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432', 10),
-  username: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
+  url: process.env.DATABASE_URL,
   ssl: parseBool(process.env.DB_SSL) ? { rejectUnauthorized: false } : false,
   entities: [__dirname + '/../**/*.entity.{ts,js}'],
   migrations: [__dirname + '/../migrations/*.{ts,js}'],

@@ -14,6 +14,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { APP_GUARD } from '@nestjs/core'; // 👈 FALTABA ESTE IMPORT
 import { SearchModule } from './search/search.module';
 import { CmsModule } from './cms/cms.module';
+import { AdminModule } from './catalog/admin.module';
 
 @Module({
   imports: [
@@ -34,7 +35,7 @@ import { CmsModule } from './cms/cms.module';
     OpsModule,
     SearchModule,
     CmsModule,
-    
+    AdminModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard }, // aplica rate limit a toda la app

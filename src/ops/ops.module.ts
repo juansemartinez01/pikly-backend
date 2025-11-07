@@ -8,7 +8,7 @@ import { OrderStatusHistory } from '../orders/entities/order-status-history.enti
 import { StockCurrent } from '../orders/entities/stock-current.entity';
 import { StockReservation } from '../orders/entities/stock-reservation.entity';
 import { DriverAssignment } from '../orders/entities/driver-assignment.entity';
-import { AdminTokenGuard } from '../admin/auth/admin-token.guard';
+import { AdminGuard } from '../admin/auth/admin.guard';
 
 @Module({
   imports: [
@@ -22,6 +22,6 @@ import { AdminTokenGuard } from '../admin/auth/admin-token.guard';
     ]),
   ],
   controllers: [OpsController],
-  providers: [OpsService, AdminTokenGuard],
+  providers: [OpsService, AdminGuard],
 })
 export class OpsModule {}

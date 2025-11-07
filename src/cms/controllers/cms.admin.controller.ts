@@ -9,9 +9,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CmsService } from '../services/cms.service';
-import { AdminTokenGuard } from '../../admin/auth/admin-token.guard';
+import { AdminGuard } from '../../admin/auth/admin.guard';
 
-@UseGuards(AdminTokenGuard)
+@UseGuards(AdminGuard)
 @Controller('admin/cms')
 export class CmsAdminController {
   constructor(private svc: CmsService) {}
@@ -23,6 +23,7 @@ export class CmsAdminController {
 
   @Post('banners')
   create(@Body() b: any) {
+    
     return this.svc.createBanner(b);
   }
 

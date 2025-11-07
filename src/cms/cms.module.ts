@@ -5,11 +5,11 @@ import { Setting } from './entities/setting.entity';
 import { CmsController } from './controllers/cms.controller';
 import { CmsAdminController } from './controllers/cms.admin.controller';
 import { CmsService } from './services/cms.service';
-import { AdminTokenGuard } from '../admin/auth/admin-token.guard';
+import { AdminGuard } from '../admin/auth/admin.guard';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Banner, Setting])],
   controllers: [CmsController, CmsAdminController],
-  providers: [CmsService, AdminTokenGuard],
+  providers: [CmsService, AdminGuard],
 })
 export class CmsModule {}

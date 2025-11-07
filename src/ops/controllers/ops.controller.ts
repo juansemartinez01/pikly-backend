@@ -9,13 +9,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { OpsService } from '../services/ops.service';
-import { AdminTokenGuard } from '../../admin/auth/admin-token.guard';
+import { AdminGuard } from '../../admin/auth/admin.guard';
 import { ListOrdersDto } from '../dto/list-orders.dto';
 import { AssignDriverDto } from '../dto/assign-driver.dto';
 import { UpdateStatusDto } from '../dto/update-status.dto';
 import { MarkDeliveredDto } from '../dto/mark-delivered.dto';
 
-@UseGuards(AdminTokenGuard)
+@UseGuards(AdminGuard)
 @Controller('admin/orders')
 export class OpsController {
   constructor(private ops: OpsService) {}
