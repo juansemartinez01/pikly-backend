@@ -195,4 +195,54 @@ export class AdminPricesService {
       })),
     };
   }
+
+  // ---------- LISTAR PRODUCTOS + PRECIOS DE UNA LISTA ----------
+
+  async listProductsForPriceList(priceListId: string) {
+    const pl = await this.plRepo.findOne({ where: { id: priceListId } });
+    if (!pl) throw new NotFoundException('Price list not found');
+
+    const now = new Date();
+
+    const rows = await this.priceRepo
+      .createQueryBuilder('pp')
+      .innerJoin('pp.product', 'p')
+      .innerJoin('pp.priceList', 'pl')
+      .select([
+        'p.id AS "productId"',
+        'p.sku AS sku',
+        'p.name AS name',
+        'pp.id AS "priceId"',
+        'pp.price AS price',
+        'pp.compareAtPrice AS "compareAtPrice"',
+        'pp.validFrom AS "validFrom"',
+        'pp.validTo AS "validTo"',
+      ])
+      .where('pl.id = :plId', { plId: pl.id })
+      // solo precios vigentes en este momento
+      .andWhere('(pp.validTo IS NULL OR pp.validTo >= :now)', { now })
+      .andWhere('pp.validFrom <= :now', { now })
+      .orderBy('p.name', 'ASC')
+      .getRawMany();
+
+    return {
+      priceList: {
+        id: pl.id,
+        name: pl.name,
+        priority: pl.priority,
+        active: pl.active,
+      },
+      items: rows.map((r) => ({
+        productId: r.productId,
+        sku: r.sku,
+        name: r.name,
+        priceId: r.priceId,
+        price: Number(r.price),
+        compareAtPrice:
+          r.compareAtPrice != null ? Number(r.compareAtPrice) : null,
+        validFrom: r.validFrom,
+        validTo: r.validTo,
+      })),
+    };
+  }
 }

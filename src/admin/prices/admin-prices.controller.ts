@@ -22,6 +22,12 @@ export class AdminPricesController {
 
   // --------- PRICE LISTS ---------
 
+  // Ver todos los productos con su precio vigente de una lista
+  @Get('pricelists/:id/products')
+  getProductsForPriceList(@Param('id') id: string) {
+    return this.svc.listProductsForPriceList(id);
+  }
+
   @Get('pricelists')
   listPriceLists() {
     return this.svc.listPriceLists();
