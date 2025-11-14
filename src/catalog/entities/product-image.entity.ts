@@ -16,7 +16,7 @@ export class ProductImage {
   @JoinColumn({ name: 'product_id' })
   product: Product;
 
-  @Column()
+  @Column({nullable: true})
   url: string;
 
   @Column({ length: 160, default: '' })

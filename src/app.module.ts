@@ -14,7 +14,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { APP_GUARD } from '@nestjs/core'; // 👈 FALTABA ESTE IMPORT
 import { SearchModule } from './search/search.module';
 import { CmsModule } from './cms/cms.module';
-import { AdminModule } from './catalog/admin.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { Product } from '../entities/product.entity';
 import { ProductPrice } from '../entities/product-price.entity';
 import { PriceList } from '../entities/price-list.entity';
@@ -11,6 +11,7 @@ import { UpdateProductDto } from '../dto/update-product.dto';
 import { ProductImage } from '../entities/product-image.entity';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { slugify } from 'src/common/slug.util';
+import { CreateAdminProductDto } from '../../admin/products/dto/create-admin-product.dto';
 
 @Injectable()
 export class ProductsService {
@@ -76,7 +77,7 @@ export class ProductsService {
         const i = this.imgRepo.create({
           id: img.id,
           url: img.url,
-          alt: img.alt ?? null,
+          alt: img.alt ?? undefined,
           order: img.order ?? idx,
         });
         return i;
@@ -149,46 +150,86 @@ export class ProductsService {
   }
 
   // ---------- ADMIN: create ----------
-  async createProduct(dto: CreateProductDto) {
-    return this.ds.transaction(async (m) => {
-      const repo = m.getRepository(Product);
-      const imgRepo = m.getRepository(ProductImage);
+  async create(dto: CreateAdminProductDto) {
+    // 0) SKU único
+    const skuTaken = await this.productRepo.findOne({
+      where: { sku: dto.sku },
+      withDeleted: true,
+    });
+    if (skuTaken) {
+      throw new BadRequestException('SKU ya existente');
+    }
 
-      // SKU único
-      const skuTaken = await repo.findOne({
-        where: { sku: dto.sku },
-        withDeleted: true,
+    // 1) Validar categoría
+    const category = await this.catRepo.findOne({
+      where: { id: dto.categoryId },
+    });
+    if (!category) throw new NotFoundException('Category not found');
+
+    // 2) Slug único (en base al slug enviado o al nombre)
+    const baseSlug = dto.slug ?? dto.name;
+    const finalSlug = await this.uniqueSlug(baseSlug);
+
+    // 3) Preparar entidad
+    const product = this.productRepo.create({
+      sku: dto.sku,
+      name: dto.name,
+      slug: finalSlug,
+      description: dto.description ?? null,
+      unitType: dto.unitType,
+      step: dto.step ?? 1,
+      minQty: dto.minQty ?? 1,
+      maxQty: dto.maxQty ?? 9999,
+      active: dto.active ?? true,
+      badges: dto.badges ?? [],
+      category,
+    });
+
+    // 4) Transacción: guardar producto + imágenes
+    try {
+      return await this.ds.transaction(async (trx) => {
+        const productRepo = trx.getRepository(Product);
+        const imgRepo = trx.getRepository(ProductImage);
+
+        const saved = await productRepo.save(product);
+
+        if (Array.isArray(dto.images) && dto.images.length > 0) {
+          const imgs = dto.images.map((i) =>
+            imgRepo.create({
+              product: saved as any,
+              url: i.url,
+              alt: i.alt ?? undefined,
+              order: i.order ?? 0,
+            }),
+          );
+          await imgRepo.save(imgs);
+        }
+
+        const out = await productRepo.findOne({
+          where: { id: saved.id },
+          relations: { category: true, images: true },
+        });
+        return out!;
       });
-      if (skuTaken) throw new BadRequestException('SKU ya existente');
+    } catch (e) {
+      // “Seguro extra” contra errores 23505 (únicos)
+      if (e instanceof QueryFailedError) {
+        const code = (e as any).driverError?.code;
+        const detail: string = (e as any).driverError?.detail || '';
 
-      const category = await this.resolveCategory(dto);
-      const slug = await this.uniqueSlug(dto.slug || dto.name);
-
-      const product = repo.create({
-        sku: dto.sku,
-        name: dto.name,
-        slug,
-        description: dto.description ?? null,
-        unitType: dto.unitType,
-        step: dto.step,
-        minQty: dto.minQty,
-        maxQty: dto.maxQty,
-        active: dto.active ?? true,
-        badges: dto.badges ?? [],
-        category,
-        images: this.normalizeImages((dto.images as any) || []),
-      });
-
-      // Guardar (cascade en imágenes funciona, pero garantizamos repo explícito si hace falta)
-      const saved = await repo.save(product);
-      if (product.images?.length) {
-        for (const im of product.images) {
-          im.product = saved as any;
-          await imgRepo.save(im);
+        if (code === '23505') {
+          if (detail.includes('(slug)')) {
+            throw new BadRequestException(
+              'Ya existe un producto con un slug similar. Probá con otro nombre.',
+            );
+          }
+          if (detail.includes('(sku)')) {
+            throw new BadRequestException('SKU ya existente');
+          }
         }
       }
-      return this.adminById(saved.id);
-    });
+      throw e;
+    }
   }
 
   // ---------- ADMIN: update ----------
