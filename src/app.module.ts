@@ -15,6 +15,7 @@ import { APP_GUARD } from '@nestjs/core'; // 👈 FALTABA ESTE IMPORT
 import { SearchModule } from './search/search.module';
 import { CmsModule } from './cms/cms.module';
 import { AdminModule } from './admin/admin.module';
+import { FilesModule } from './files/files.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AdminModule } from './admin/admin.module';
     SearchModule,
     CmsModule,
     AdminModule,
+    FilesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard }, // aplica rate limit a toda la app
