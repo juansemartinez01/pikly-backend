@@ -59,15 +59,17 @@ export class OrdersService {
 
   async createFromCart(dto: CreateOrderDto) {
     return this.ds.transaction(async (m) => {
-      const cart = await m.getRepository(Cart).findOne({
-        where: { id: dto.cartId },
-        relations: { items: { product: true, combo: true }, priceList: true },
-      });
-      if (!cart) throw new NotFoundException('Carrito no encontrado');
-      if (!cart.items || cart.items.length === 0)
+      // -----------------------------
+      // 1) Validar items (antes venían de Cart.items)
+      // -----------------------------
+      const items = dto.items || [];
+      if (!items.length) {
         throw new BadRequestException('Carrito vacío');
+      }
 
-      // Cliente simple (si vino email/phone)
+      // -----------------------------
+      // 2) Cliente simple (si vino email/phone)
+      // -----------------------------
       let customer: Customer | null = null;
       if (dto.customerEmail || dto.customerPhone) {
         customer = await m.getRepository(Customer).save({
@@ -78,13 +80,17 @@ export class OrdersService {
         });
       }
 
-      // Dirección
+      // -----------------------------
+      // 3) Dirección
+      // -----------------------------
       const address = await m.getRepository(Address).save({
         customer: customer || null,
         ...dto.address,
       });
 
-      // Slot
+      // -----------------------------
+      // 4) Slot de entrega
+      // -----------------------------
       let slot: DeliverySlot | null = null;
       if (dto.deliverySlotId) {
         slot = await m
@@ -97,33 +103,55 @@ export class OrdersService {
         slot = slots[0] || null;
       }
 
+      // -----------------------------
+      // 5) Totales (antes venían de cart.subtotal / cart.total)
+      // -----------------------------
+      const computedSubtotal = items.reduce(
+        (acc, i) => acc + Number(i.total ?? i.unitPrice * i.qty),
+        0,
+      );
+
+      const subtotal = dto.subtotal ?? computedSubtotal;
+      const discountTotal = dto.discountTotal ?? 0;
+      const shippingTotal = 0; // Regla de envío se suma luego si hace falta
+      const total = dto.total ?? subtotal - discountTotal + shippingTotal;
+
+      const currency = dto.currency ?? 'ARS';
+
+      // -----------------------------
+      // 6) Crear Order (sin depender del carrito en BD)
+      // -----------------------------
       const order = m.getRepository(Order).create({
         orderNumber: this.genOrderNumber(),
         customer: customer || null,
         address,
-        cartId: cart.id,
+        cartId: dto.cartId ?? null, // lo seguimos guardando como referencia externa
         status: 'created',
         paymentStatus: dto.markAsPaid ? 'approved' : 'pending',
-        priceList: cart.priceList || null,
-        currency: cart.currency,
-        subtotal: Number(cart.subtotal),
-        discountTotal: Number(cart.discountTotal),
-        shippingTotal: 0, // regla de envío se suma luego
-        total: Number(cart.total),
+        priceList: null, // si querés, después podemos agregar priceListId en el DTO
+        currency,
+        subtotal,
+        discountTotal,
+        shippingTotal,
+        total,
         deliveryDate: dto.deliveryDate,
         deliverySlot: slot || null,
         notes: dto.notes || null,
       });
+
       const saved = await m.getRepository(Order).save(order);
 
-      // Items (snapshot)
-      for (const ci of cart.items) {
+      // -----------------------------
+      // 7) Items (snapshot que antes venía del CartItem)
+      // -----------------------------
+      for (const ci of items) {
         await m.getRepository(OrderItem).save({
           order: saved,
-          product: ci.product || null,
-          combo: ci.combo || null,
-          nameSnapshot: ci.product ? ci.product.name : ci.combo?.name || '',
-          skuSnapshot: ci.product ? (ci.product as any).sku : null,
+          // de momento no linkeamos Product/Combo, solo snapshot
+          product: null,
+          combo: null,
+          nameSnapshot: ci.name,
+          skuSnapshot: ci.sku ?? null,
           unitType: ci.unitType as any,
           qty: Number(ci.qty),
           unitPrice: Number(ci.unitPrice),
@@ -133,19 +161,33 @@ export class OrdersService {
         });
       }
 
-      // Reservas de stock (solo productos)
-      for (const ci of cart.items.filter((i) => !!i.product)) {
-        await m.getRepository(StockReservation).save({
-          order: saved,
-          product: ci.product!,
-          qty: Number(ci.qty),
-        });
-      }
+      // -----------------------------
+      // 8) Reservas de stock
+      // -----------------------------
+      // Antes: se basaba en Cart.items.product (entidad completa).
+      // Ahora solo tenemos IDs en el DTO. Si querés seguir reservando stock,
+      // en otra iteración agregamos acá la carga de Product por id y las reservas.
+      //
+      // Por ahora lo dejamos desactivado para no complicar este cambio:
+      //
+      // for (const ci of items.filter((i) => i.productId)) {
+      //   const product = await m.getRepository(Product).findOne({ where: { id: ci.productId } });
+      //   if (!product) continue;
+      //   await m.getRepository(StockReservation).save({
+      //     order: saved,
+      //     product,
+      //     qty: Number(ci.qty),
+      //   });
+      // }
 
-      // Marcar slot como tomado
+      // -----------------------------
+      // 9) Marcar slot como tomado
+      // -----------------------------
       if (slot) await this.delivery.take(slot.id);
 
-      // Historia de estado
+      // -----------------------------
+      // 10) Historia de estado
+      // -----------------------------
       await m.getRepository(OrderStatusHistory).save({
         order: saved,
         fromStatus: null,
@@ -165,8 +207,8 @@ export class OrdersService {
         });
       }
 
-      // Limpio el carrito (opcional: lo dejamos para que el cliente lo pueda reabrir)
-      // await m.getRepository(CartItem).delete({ cart: { id: cart.id } });
+      // Ya no limpiamos carrito porque no lo tenemos en BD
+      // (el front maneja el carrito)
 
       return this.getByNumber(saved.orderNumber);
     });
