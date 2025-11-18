@@ -209,19 +209,33 @@ export class OrdersService {
         note: 'Orden creada',
       });
 
-      // 11) Si markAsPaid = true, pasamos a to_pick
-      if (dto.markAsPaid) {
-        saved.status = 'to_pick';
-        await m.getRepository(Order).save(saved);
-        await m.getRepository(OrderStatusHistory).save({
-          order: saved,
-          fromStatus: 'created',
-          toStatus: 'to_pick',
-          note: 'Pago acreditado (flag markAsPaid)',
-        });
-      }
-
-      return this.getByNumber(saved.orderNumber);
+        // 11) Si markAsPaid = true, pasamos a to_pick
+  if (dto.markAsPaid) {
+    saved.status = 'to_pick';
+    await m.getRepository(Order).save(saved);
+    await m.getRepository(OrderStatusHistory).save({
+      order: saved,
+      fromStatus: 'created',
+      toStatus: 'to_pick',
+      note: 'Pago acreditado (flag markAsPaid)',
     });
+  }
+
+  // ✅ IMPORTANTE: NO llamar a this.getByNumber dentro de la tx
+  const out = await m.getRepository(Order).findOne({
+    where: { id: saved.id },
+    relations: {
+      items: true,
+      priceList: true,
+      address: true,
+      customer: true,
+      deliverySlot: true,
+    },
+  });
+
+  return out!;
+});
+  
+    
   }
 }
