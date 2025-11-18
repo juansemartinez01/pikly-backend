@@ -206,4 +206,66 @@ export class OpsService {
       note: 'Entrega confirmada',
     } as any);
   }
+
+  // ---------- STOCK: consultas simples ----------
+
+  async listStock(warehouseId?: string | null) {
+    const where: any = {};
+    if (warehouseId === 'null') warehouseId = null;
+    if (warehouseId !== undefined) {
+      where.warehouseId = warehouseId;
+    }
+
+    const rows = await this.stockRepo.find({
+      where,
+      relations: { product: true },
+      order: { qty: 'ASC' },
+    });
+
+    return rows.map((r) => ({
+      id: r.id,
+      product: {
+        id: r.product.id,
+        // si tu Product tiene sku, lo exponemos también
+        sku: (r.product as any).sku ?? null,
+        name: r.product.name,
+      },
+      warehouseId: r.warehouseId ?? null,
+      qty: Number(r.qty),
+    }));
+  }
+
+  async stockForProduct(productId: string, warehouseId?: string | null) {
+    const where: any = { product: { id: productId } };
+    if (warehouseId === 'null') warehouseId = null;
+    if (warehouseId !== undefined) {
+      where.warehouseId = warehouseId;
+    }
+
+    const sc = await this.stockRepo.findOne({
+      where,
+      relations: { product: true },
+    });
+
+    // Si no hay registro, devolvemos qty 0 en vez de tirar 404
+    if (!sc) {
+      return {
+        id: null,
+        product: { id: productId },
+        warehouseId: warehouseId ?? null,
+        qty: 0,
+      };
+    }
+
+    return {
+      id: sc.id,
+      product: {
+        id: sc.product.id,
+        sku: (sc.product as any).sku ?? null,
+        name: sc.product.name,
+      },
+      warehouseId: sc.warehouseId ?? null,
+      qty: Number(sc.qty),
+    };
+  }
 }

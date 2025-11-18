@@ -20,6 +20,24 @@ import { MarkDeliveredDto } from '../dto/mark-delivered.dto';
 export class OpsController {
   constructor(private ops: OpsService) {}
 
+  // --------- STOCK (admin) ---------
+
+  // GET /v1/admin/orders/stock?warehouseId=... (opcional)
+  @Get('stock')
+  listStock(@Query('warehouseId') warehouseId?: string) {
+    return this.ops.listStock(warehouseId);
+  }
+
+  // GET /v1/admin/orders/stock/product/:productId?warehouseId=...
+  @Get('stock/product/:productId')
+  stockForProduct(
+    @Param('productId') productId: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.ops.stockForProduct(productId, warehouseId);
+  }
+
+  
   @Get()
   list(@Query() q: ListOrdersDto) {
     return this.ops.list(q);
