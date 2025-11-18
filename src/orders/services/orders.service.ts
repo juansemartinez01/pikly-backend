@@ -16,6 +16,9 @@ import { Cart } from '../../cart/entities/cart.entity';
 import { CartItem } from '../../cart/entities/cart-item.entity';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { DeliveryService } from './delivery.service';
+import { PriceList } from 'src/catalog/entities/price-list.entity';
+import { Product } from 'src/catalog/entities/product.entity';
+import { Combo } from 'src/catalog/entities/combo.entity';
 
 @Injectable()
 export class OrdersService {
@@ -58,18 +61,14 @@ export class OrdersService {
   }
 
   async createFromCart(dto: CreateOrderDto) {
+    // Ahora en realidad crea desde items directos, pero mantenemos el nombre
     return this.ds.transaction(async (m) => {
-      // -----------------------------
-      // 1) Validar items (antes venían de Cart.items)
-      // -----------------------------
-      const items = dto.items || [];
-      if (!items.length) {
-        throw new BadRequestException('Carrito vacío');
+      // 1) Validar que haya items
+      if (!dto.items || dto.items.length === 0) {
+        throw new BadRequestException('Order must have at least one item');
       }
 
-      // -----------------------------
       // 2) Cliente simple (si vino email/phone)
-      // -----------------------------
       let customer: Customer | null = null;
       if (dto.customerEmail || dto.customerPhone) {
         customer = await m.getRepository(Customer).save({
@@ -80,17 +79,13 @@ export class OrdersService {
         });
       }
 
-      // -----------------------------
       // 3) Dirección
-      // -----------------------------
       const address = await m.getRepository(Address).save({
         customer: customer || null,
         ...dto.address,
       });
 
-      // -----------------------------
-      // 4) Slot de entrega
-      // -----------------------------
+      // 4) Slot de entrega (mantenemos lógica existente)
       let slot: DeliverySlot | null = null;
       if (dto.deliverySlotId) {
         slot = await m
@@ -103,33 +98,30 @@ export class OrdersService {
         slot = slots[0] || null;
       }
 
-      // -----------------------------
-      // 5) Totales (antes venían de cart.subtotal / cart.total)
-      // -----------------------------
-      const computedSubtotal = items.reduce(
-        (acc, i) => acc + Number(i.total ?? i.unitPrice * i.qty),
-        0,
-      );
+      // 5) Calcular subtotales desde items
+      let subtotal = 0;
+      for (const it of dto.items) {
+        subtotal += Number(it.unitPrice) * Number(it.qty);
+      }
+      const discountTotal = 0; // Podés extender luego si querés manejar descuentos
+      const shippingTotal = 0;
+      const total = subtotal - discountTotal + shippingTotal;
 
-      const subtotal = dto.subtotal ?? computedSubtotal;
-      const discountTotal = dto.discountTotal ?? 0;
-      const shippingTotal = 0; // Regla de envío se suma luego si hace falta
-      const total = dto.total ?? subtotal - discountTotal + shippingTotal;
+      // (Opcional) si querés asociar una PriceList:
+      let priceList: PriceList | null = null;
+      // Si más adelante querés mandar priceListId en el DTO, acá lo podrías resolver.
+      // Por ahora lo dejamos en null para no complicar.
 
-      const currency = dto.currency ?? 'ARS';
-
-      // -----------------------------
-      // 6) Crear Order (sin depender del carrito en BD)
-      // -----------------------------
+      // 6) Crear la orden
       const order = m.getRepository(Order).create({
         orderNumber: this.genOrderNumber(),
         customer: customer || null,
         address,
-        cartId: dto.cartId ?? null, // lo seguimos guardando como referencia externa
+        cartId: null, // ya no usamos carrito
         status: 'created',
         paymentStatus: dto.markAsPaid ? 'approved' : 'pending',
-        priceList: null, // si querés, después podemos agregar priceListId en el DTO
-        currency,
+        priceList: priceList,
+        currency: 'ARS', // podés parametrizarlo si querés
         subtotal,
         discountTotal,
         shippingTotal,
@@ -138,56 +130,78 @@ export class OrdersService {
         deliverySlot: slot || null,
         notes: dto.notes || null,
       });
-
       const saved = await m.getRepository(Order).save(order);
 
-      // -----------------------------
-      // 7) Items (snapshot que antes venía del CartItem)
-      // -----------------------------
-      for (const ci of items) {
+      // 7) Crear items de la orden (snapshot)
+      for (const it of dto.items) {
+        let product: Product | null = null;
+        let combo: Combo | null = null;
+
+        if (it.productId) {
+          product = await m
+            .getRepository(Product)
+            .findOne({ where: { id: it.productId } });
+          if (!product) {
+            throw new BadRequestException(`Product not found: ${it.productId}`);
+          }
+        }
+
+        if (it.comboId) {
+          combo = await m
+            .getRepository(Combo)
+            .findOne({ where: { id: it.comboId } });
+          if (!combo) {
+            throw new BadRequestException(`Combo not found: ${it.comboId}`);
+          }
+        }
+
+        const lineTotal = Number(it.unitPrice) * Number(it.qty);
+
+        const nameSnapshot =
+          product?.name || combo?.name || it.comment || 'Item';
+
+        const skuSnapshot = product ? ((product as any).sku ?? null) : null;
+
         await m.getRepository(OrderItem).save({
           order: saved,
-          // de momento no linkeamos Product/Combo, solo snapshot
-          product: null,
-          combo: null,
-          nameSnapshot: ci.name,
-          skuSnapshot: ci.sku ?? null,
-          unitType: ci.unitType as any,
-          qty: Number(ci.qty),
-          unitPrice: Number(ci.unitPrice),
+          product: product || null,
+          combo: combo || null,
+          nameSnapshot,
+          skuSnapshot,
+          unitType: product
+            ? (product.unitType as any)
+            : combo
+              ? 'combo'
+              : 'unit',
+          qty: Number(it.qty),
+          unitPrice: Number(it.unitPrice),
           compareAtPrice:
-            ci.compareAtPrice != null ? Number(ci.compareAtPrice) : null,
-          total: Number(ci.total),
+            it.compareAtPrice != null ? Number(it.compareAtPrice) : null,
+          total: lineTotal,
         });
       }
 
-      // -----------------------------
-      // 8) Reservas de stock
-      // -----------------------------
-      // Antes: se basaba en Cart.items.product (entidad completa).
-      // Ahora solo tenemos IDs en el DTO. Si querés seguir reservando stock,
-      // en otra iteración agregamos acá la carga de Product por id y las reservas.
-      //
-      // Por ahora lo dejamos desactivado para no complicar este cambio:
-      //
-      // for (const ci of items.filter((i) => i.productId)) {
-      //   const product = await m.getRepository(Product).findOne({ where: { id: ci.productId } });
-      //   if (!product) continue;
-      //   await m.getRepository(StockReservation).save({
-      //     order: saved,
-      //     product,
-      //     qty: Number(ci.qty),
-      //   });
-      // }
+      // 8) Reservas de stock (como antes, pero desde dto.items)
+      for (const it of dto.items) {
+        if (!it.productId) continue;
 
-      // -----------------------------
+        const product = await m
+          .getRepository(Product)
+          .findOne({ where: { id: it.productId } });
+
+        if (!product) continue;
+
+        await m.getRepository(StockReservation).save({
+          order: saved,
+          product,
+          qty: Number(it.qty),
+        });
+      }
+
       // 9) Marcar slot como tomado
-      // -----------------------------
       if (slot) await this.delivery.take(slot.id);
 
-      // -----------------------------
       // 10) Historia de estado
-      // -----------------------------
       await m.getRepository(OrderStatusHistory).save({
         order: saved,
         fromStatus: null,
@@ -195,7 +209,7 @@ export class OrdersService {
         note: 'Orden creada',
       });
 
-      // (Opcional) si nos pidieron marcar como pago
+      // 11) Si markAsPaid = true, pasamos a to_pick
       if (dto.markAsPaid) {
         saved.status = 'to_pick';
         await m.getRepository(Order).save(saved);
@@ -206,9 +220,6 @@ export class OrdersService {
           note: 'Pago acreditado (flag markAsPaid)',
         });
       }
-
-      // Ya no limpiamos carrito porque no lo tenemos en BD
-      // (el front maneja el carrito)
 
       return this.getByNumber(saved.orderNumber);
     });

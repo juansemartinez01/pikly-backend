@@ -2,19 +2,45 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
-  IsNumber,
   IsOptional,
   IsString,
-  Min,
   ValidateNested,
+  IsUUID,
+  IsNumber,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AddressDto } from './address.dto';
-import { CreateOrderItemDto } from './create-order-item.dto';
+
+export class CreateOrderItemDto {
+  @IsUUID()
+  productId!: string; // seguimos usando UUID, NO int
+
+  @IsOptional()
+  @IsUUID()
+  comboId?: string; // por si en algún momento querés usar combos
+
+  @IsNumber()
+  @Min(0.001)
+  qty!: number;
+
+  @IsNumber()
+  @Min(0)
+  unitPrice!: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  compareAtPrice?: number;
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
+}
 
 export class CreateOrderDto {
-  @IsString()
-  cartId!: string; // lo seguimos guardando como referencia externa, pero no miramos el carrito en BD
+  // 👇 YA NO USAMOS cartId
+  // @IsString() cartId!: string;
 
   @IsOptional()
   @IsString()
@@ -36,8 +62,9 @@ export class CreateOrderDto {
   @Type(() => AddressDto)
   address!: AddressDto;
 
+  // Podés interpretarlo como "fechaHora" de tu ejemplo
   @IsDateString()
-  deliveryDate!: string; // YYYY-MM-DD
+  deliveryDate!: string; // YYYY-MM-DD o fecha ISO, como ya venías usando
 
   @IsOptional()
   @IsString()
@@ -51,29 +78,8 @@ export class CreateOrderDto {
   @IsString()
   notes?: string;
 
-  // ---- NUEVO: items de la orden (antes venían del carrito en BD) ----
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   items!: CreateOrderItemDto[];
-
-  // ---- Opcional: totales calculados en el front ----
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  subtotal?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  discountTotal?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  total?: number;
-
-  @IsOptional()
-  @IsString()
-  currency?: string; // default 'ARS' si no viene
 }
