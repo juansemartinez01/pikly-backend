@@ -9,6 +9,7 @@ import { StockCurrent } from '../orders/entities/stock-current.entity';
 import { StockReservation } from '../orders/entities/stock-reservation.entity';
 import { DriverAssignment } from '../orders/entities/driver-assignment.entity';
 import { AdminGuard } from '../admin/auth/admin.guard';
+import { Product } from 'src/catalog/entities/product.entity';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { AdminGuard } from '../admin/auth/admin.guard';
       StockCurrent,
       StockReservation,
       DriverAssignment,
+      Product
     ]),
   ],
   controllers: [OpsController],
