@@ -15,6 +15,8 @@ import { ListOrdersDto } from '../dto/list-orders.dto';
 import { AssignDriverDto } from '../dto/assign-driver.dto';
 import { UpdateStatusDto } from '../dto/update-status.dto';
 import { MarkDeliveredDto } from '../dto/mark-delivered.dto';
+import { AdjustStockDto } from '../dto/adjust-stock.dto';
+import { Product } from 'src/catalog/entities/product.entity';
 
 @Injectable()
 export class OpsService {
@@ -28,6 +30,8 @@ export class OpsService {
     private resRepo: Repository<StockReservation>,
     @InjectRepository(DriverAssignment)
     private drvRepo: Repository<DriverAssignment>,
+    @InjectRepository(Product)
+    private productRepo: Repository<Product>,
     private ds: DataSource,
   ) {}
 
@@ -263,6 +267,45 @@ export class OpsService {
         id: sc.product.id,
         sku: (sc.product as any).sku ?? null,
         name: sc.product.name,
+      },
+      warehouseId: sc.warehouseId ?? null,
+      qty: Number(sc.qty),
+    };
+  }
+
+  // Suma stock a un producto (crea fila si no existe)
+  async addStock(productId: string, dto: AdjustStockDto) {
+    const product = await this.productRepo.findOne({
+      where: { id: productId },
+    });
+    if (!product) throw new NotFoundException('Producto no encontrado');
+
+    const warehouseId = dto.warehouseId ?? null;
+
+    let sc = await this.stockRepo.findOne({
+      where: { product: { id: product.id }, warehouseId: warehouseId === null ? IsNull() : warehouseId },
+      relations: { product: true },
+    });
+
+    if (!sc) {
+      sc = this.stockRepo.create({
+        product,
+        warehouseId,
+        qty: 0,
+      });
+    }
+
+    const current = Number(sc.qty) || 0;
+    const added = Number(dto.qty);
+    sc.qty = Number((current + added).toFixed(3));
+
+    await this.stockRepo.save(sc);
+
+    return {
+      product: {
+        id: product.id,
+        sku: (product as any).sku ?? null,
+        name: product.name,
       },
       warehouseId: sc.warehouseId ?? null,
       qty: Number(sc.qty),

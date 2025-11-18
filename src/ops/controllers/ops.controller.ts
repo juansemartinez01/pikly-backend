@@ -14,6 +14,7 @@ import { ListOrdersDto } from '../dto/list-orders.dto';
 import { AssignDriverDto } from '../dto/assign-driver.dto';
 import { UpdateStatusDto } from '../dto/update-status.dto';
 import { MarkDeliveredDto } from '../dto/mark-delivered.dto';
+import { AdjustStockDto } from '../dto/adjust-stock.dto';
 
 @UseGuards(AdminGuard)
 @Controller('admin/orders')
@@ -37,7 +38,6 @@ export class OpsController {
     return this.ops.stockForProduct(productId, warehouseId);
   }
 
-  
   @Get()
   list(@Query() q: ListOrdersDto) {
     return this.ops.list(q);
@@ -56,5 +56,11 @@ export class OpsController {
   @Post(':number/delivered')
   delivered(@Param('number') number: string, @Body() dto: MarkDeliveredDto) {
     return this.ops.markDelivered(number, dto);
+  }
+
+  // POST /v1/admin/orders/stock/product/:productId/add
+  @Post('stock/product/:productId/add')
+  addStock(@Param('productId') productId: string, @Body() dto: AdjustStockDto) {
+    return this.ops.addStock(productId, dto);
   }
 }

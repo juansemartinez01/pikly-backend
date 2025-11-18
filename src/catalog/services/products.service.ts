@@ -12,6 +12,7 @@ import { ProductImage } from '../entities/product-image.entity';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { slugify } from 'src/common/slug.util';
 import { CreateAdminProductDto } from '../../admin/products/dto/create-admin-product.dto';
+import { StockCurrent } from 'src/orders/entities/stock-current.entity';
 
 @Injectable()
 export class ProductsService {
@@ -185,14 +186,16 @@ export class ProductsService {
       category,
     });
 
-    // 4) Transacción: guardar producto + imágenes
+    // 4) Transacción: guardar producto + imágenes + stock_current(0)
     try {
       return await this.ds.transaction(async (trx) => {
         const productRepo = trx.getRepository(Product);
         const imgRepo = trx.getRepository(ProductImage);
+        const stockRepo = trx.getRepository(StockCurrent);
 
         const saved = await productRepo.save(product);
 
+        // imágenes
         if (Array.isArray(dto.images) && dto.images.length > 0) {
           const imgs = dto.images.map((i) =>
             imgRepo.create({
@@ -204,6 +207,14 @@ export class ProductsService {
           );
           await imgRepo.save(imgs);
         }
+
+        // stock_current inicial = 0 (sin depósito / warehouseId null)
+        const sc = stockRepo.create({
+          product: saved as any,
+          warehouseId: null,
+          qty: 0,
+        });
+        await stockRepo.save(sc);
 
         const out = await productRepo.findOne({
           where: { id: saved.id },
