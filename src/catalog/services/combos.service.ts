@@ -138,6 +138,7 @@ export class CombosService {
           .where('combo_id = :id', { id })
           .execute();
 
+
         // insertar los nuevos
         for (const i of dto.items) {
           const product = await this.productRepo.findOne({
