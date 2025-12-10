@@ -110,11 +110,11 @@ export class CombosService {
     });
   }
 
-  // ---------- UPDATE ----------
   async update(id: string, dto: UpdateComboDto) {
     return this.ds.transaction(async (m) => {
       const comboRepo = m.getRepository(Combo);
       const itemRepo = m.getRepository(ComboItem);
+      const priceListRepo = m.getRepository(PriceList);
 
       const combo = await comboRepo.findOne({
         where: { id },
@@ -122,6 +122,7 @@ export class CombosService {
       });
       if (!combo) throw new NotFoundException('Combo no encontrado');
 
+      // -------- CAMPOS BÁSICOS --------
       if (dto.name !== undefined) combo.name = dto.name;
       if (dto.description !== undefined)
         combo.description = dto.description ?? null;
@@ -129,19 +130,15 @@ export class CombosService {
       if (dto.badges !== undefined) combo.badges = dto.badges ?? [];
       if (dto.imageUrl !== undefined) combo.imageUrl = dto.imageUrl;
 
+      // -------- SLUG --------
       if (dto.slug || dto.name) {
-        const base = dto.slug ?? combo.slug ?? combo.name;
+        const base = dto.slug ?? dto.name ?? combo.slug;
         combo.slug = await this.uniqueSlug(base, id);
       }
 
-      // ------- Reemplazar Items -------
+      // -------- REEMPLAZAR ITEMS --------
       if (dto.items) {
-        await itemRepo
-          .createQueryBuilder()
-          .delete()
-          .from(ComboItem)
-          .where('combo_id = :id', { id })
-          .execute();
+        await itemRepo.delete({ combo: { id } });
 
         for (const i of dto.items) {
           const product = await this.productRepo.findOne({
@@ -160,14 +157,18 @@ export class CombosService {
         }
       }
 
-      // ------- Actualizar priceLists -------
-      if (dto.priceListIds) {
-        combo.priceLists = await this.priceListRepo.findByIds(dto.priceListIds);
+      // -------- REEMPLAZAR PRICE LISTS --------
+      if (dto.priceListIds !== undefined) {
+        combo.priceLists = await priceListRepo.findByIds(dto.priceListIds);
       }
 
       await comboRepo.save(combo);
 
-      return this.adminById(id);
+      // 🔥 devolver usando el manager
+      return comboRepo.findOne({
+        where: { id },
+        relations: { items: { product: true }, priceLists: true },
+      });
     });
   }
 
@@ -193,13 +194,14 @@ export class CombosService {
   }
 
   // ---------- PUBLIC LIST ----------
-  async list(priceListName?: string) {
+  async list(priceListId?: string) {
     let priceList: PriceList | null = null;
 
-    if (priceListName) {
+    if (priceListId) {
       priceList = await this.priceListRepo.findOne({
-        where: { name: priceListName, active: true },
+        where: { id: priceListId, active: true },
       });
+      if (!priceList) throw new NotFoundException('Lista no encontrada');
     }
 
     if (!priceList) {
@@ -215,29 +217,25 @@ export class CombosService {
       order: { name: 'ASC' },
     });
 
-    // ------- Filtro por listas -------
-    if (priceListName) {
+    // FILTRO POR PRICE LIST ID
+    if (priceList) {
       combos = combos.filter((c) =>
-        c.priceLists.some((pl) => pl.name === priceListName),
+        c.priceLists.some((pl) => pl.id === priceList.id),
       );
-    }
 
-    // ------- Precios dinámicos para items -------
-    for (const c of combos) {
-      for (const item of c.items) {
-        let pp: ProductPrice | null = null;
-
-        if (priceList) {
-          pp = await this.priceRepo.findOne({
+      // CALCULAR PRECIOS
+      for (const c of combos) {
+        for (const item of c.items) {
+          const pp = await this.priceRepo.findOne({
             where: {
               product: { id: item.product.id },
               priceList: { id: priceList.id },
             },
           });
-        }
 
-        item.product['price'] = pp?.price ?? null;
-        item.product['compareAtPrice'] = pp?.compareAtPrice ?? null;
+          item.product['price'] = pp?.price ?? null;
+          item.product['compareAtPrice'] = pp?.compareAtPrice ?? null;
+        }
       }
     }
 
