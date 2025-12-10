@@ -160,7 +160,12 @@ export class CombosService {
       // Guardar combo modificado
       await comboRepo.save(combo);
 
-      return this.adminById(id);
+      // 🔥 CARGA FINAL CORRECTA DENTRO DEL TRANSACTION
+      return comboRepo.findOne({
+        where: { id },
+        relations: { items: { product: true } },
+      });
+
     });
   }
 
