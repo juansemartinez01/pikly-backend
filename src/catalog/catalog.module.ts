@@ -13,6 +13,7 @@ import { CombosController } from './controllers/combos.controller';
 import { CategoriesService } from './services/categories.service';
 import { ProductsService } from './services/products.service';
 import { CombosService } from './services/combos.service';
+import { AdminCombosController } from './controllers/adminCombos.controller';
 
 @Module({
   imports: [
@@ -26,7 +27,7 @@ import { CombosService } from './services/combos.service';
       ComboItem,
     ]),
   ],
-  controllers: [CategoriesController, ProductsController, CombosController],
+  controllers: [CategoriesController, ProductsController, CombosController,AdminCombosController],
   providers: [CategoriesService, ProductsService, CombosService],
   exports: [ProductsService],
 })
