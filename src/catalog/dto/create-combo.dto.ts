@@ -6,7 +6,6 @@ import {
   IsUUID,
   Min,
   MaxLength,
-  IsBoolean,
 } from 'class-validator';
 
 export class CreateComboItemDto {
@@ -47,4 +46,10 @@ export class CreateComboDto {
 
   @IsArray()
   items: CreateComboItemDto[];
+
+  // 👇 NUEVO
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  priceListIds?: string[];
 }

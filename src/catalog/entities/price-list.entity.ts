@@ -4,9 +4,11 @@ import {
   DeleteDateColumn,
   Entity,
   Index,
+  ManyToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Combo } from './combo.entity';
 
 @Entity('price_list')
 @Index(['name'], { unique: true })
@@ -25,6 +27,9 @@ export class PriceList {
 
   @Column({ type: 'int', default: 100 })
   priority: number; // menor número = mayor prioridad
+
+  @ManyToMany(() => Combo, (c) => c.priceLists)
+  combos: Combo[];
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

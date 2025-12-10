@@ -4,11 +4,14 @@ import {
   DeleteDateColumn,
   Entity,
   Index,
+  JoinTable,
+  ManyToMany,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { ComboItem } from './combo-item.entity';
+import { PriceList } from './price-list.entity';
 
 @Entity('combo')
 @Index(['slug'], { unique: true })
@@ -36,6 +39,14 @@ export class Combo {
 
   @Column({ type: 'jsonb', nullable: true })
   badges?: string[] | null;
+
+  @ManyToMany(() => PriceList, (pl) => pl.combos)
+  @JoinTable({
+    name: 'combo_price_list',
+    joinColumn: { name: 'combo_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'price_list_id', referencedColumnName: 'id' },
+  })
+  priceLists: PriceList[];
 
   // 👇 Forzamos tipo explícito para evitar "Object"
   @Column({ type: 'text', nullable: true, name: 'image_url' })

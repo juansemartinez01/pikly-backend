@@ -11,8 +11,8 @@ import { Product } from '../entities/product.entity';
 import { CreateComboDto } from '../dto/create-combo.dto';
 import { UpdateComboDto } from '../dto/update-combo.dto';
 import { slugify } from 'src/common/slug.util';
-import { ProductPrice } from 'src/catalog/entities/product-price.entity';
 import { PriceList } from 'src/catalog/entities/price-list.entity';
+import { ProductPrice } from 'src/catalog/entities/product-price.entity';
 
 @Injectable()
 export class CombosService {
@@ -44,7 +44,7 @@ export class CombosService {
   // ---------- ADMIN LIST ----------
   async adminList() {
     return this.repo.find({
-      relations: { items: { product: true } },
+      relations: { items: { product: true }, priceLists: true },
       order: { createdAt: 'DESC' },
     });
   }
@@ -52,7 +52,7 @@ export class CombosService {
   async adminById(id: string) {
     const combo = await this.repo.findOne({
       where: { id },
-      relations: { items: { product: true } },
+      relations: { items: { product: true }, priceLists: true },
       withDeleted: true,
     });
     if (!combo) throw new NotFoundException('Combo no encontrado');
@@ -65,7 +65,6 @@ export class CombosService {
       const comboRepo = m.getRepository(Combo);
       const itemRepo = m.getRepository(ComboItem);
 
-      // Slug único
       const slug = await this.uniqueSlug(dto.slug ?? dto.name);
 
       const combo = comboRepo.create({
@@ -80,7 +79,7 @@ export class CombosService {
 
       const saved = await comboRepo.save(combo);
 
-      // Guardar items
+      // ------- Guardar Items -------
       for (const i of dto.items) {
         const product = await this.productRepo.findOne({
           where: { id: i.productId },
@@ -97,10 +96,13 @@ export class CombosService {
         await itemRepo.save(item);
       }
 
-      return comboRepo.findOne({
-        where: { id: saved.id },
-        relations: { items: { product: true } },
-      });
+      // ------- Guardar relación PriceList -------
+      if (dto.priceListIds?.length) {
+        saved.priceLists = await this.priceListRepo.findByIds(dto.priceListIds);
+        await comboRepo.save(saved);
+      }
+
+      return this.adminById(saved.id);
     });
   }
 
@@ -112,7 +114,7 @@ export class CombosService {
 
       const combo = await comboRepo.findOne({
         where: { id },
-        relations: { items: { product: true } },
+        relations: { items: true, priceLists: true },
       });
       if (!combo) throw new NotFoundException('Combo no encontrado');
 
@@ -123,15 +125,13 @@ export class CombosService {
       if (dto.badges !== undefined) combo.badges = dto.badges ?? [];
       if (dto.imageUrl !== undefined) combo.imageUrl = dto.imageUrl;
 
-      // slug dinámico
       if (dto.slug || dto.name) {
         const base = dto.slug ?? combo.slug ?? combo.name;
         combo.slug = await this.uniqueSlug(base, id);
       }
 
-      // --------- REEMPLAZO TOTAL DE ITEMS ---------
+      // ------- Reemplazar Items -------
       if (dto.items) {
-        // 🔥 Elimina TODOS los ítems del combo usando FK REAL
         await itemRepo
           .createQueryBuilder()
           .delete()
@@ -139,7 +139,6 @@ export class CombosService {
           .where('combo_id = :id', { id })
           .execute();
 
-        // Insertar los nuevos ítems
         for (const i of dto.items) {
           const product = await this.productRepo.findOne({
             where: { id: i.productId },
@@ -147,7 +146,7 @@ export class CombosService {
           if (!product) throw new BadRequestException('Producto inválido');
 
           const newItem = itemRepo.create({
-            combo: combo,
+            combo,
             product,
             qty: i.qty,
             unitType: i.unitType,
@@ -157,15 +156,14 @@ export class CombosService {
         }
       }
 
-      // Guardar combo modificado
+      // ------- Actualizar priceLists -------
+      if (dto.priceListIds) {
+        combo.priceLists = await this.priceListRepo.findByIds(dto.priceListIds);
+      }
+
       await comboRepo.save(combo);
 
-      // 🔥 CARGA FINAL CORRECTA DENTRO DEL TRANSACTION
-      return comboRepo.findOne({
-        where: { id },
-        relations: { items: { product: true } },
-      });
-
+      return this.adminById(id);
     });
   }
 
@@ -207,23 +205,30 @@ export class CombosService {
       });
     }
 
-    const combos = await this.repo.find({
+    let combos = await this.repo.find({
       where: { active: true },
-      relations: { items: { product: true } },
+      relations: { items: { product: true }, priceLists: true },
       order: { name: 'ASC' },
     });
 
-    // Enriquecer precios dinámicos
+    // ------- Filtro por listas -------
+    if (priceListName) {
+      combos = combos.filter((c) =>
+        c.priceLists.some((pl) => pl.name === priceListName),
+      );
+    }
+
+    // ------- Precios dinámicos para items -------
     for (const c of combos) {
       for (const item of c.items) {
         let pp: ProductPrice | null = null;
+
         if (priceList) {
           pp = await this.priceRepo.findOne({
             where: {
               product: { id: item.product.id },
               priceList: { id: priceList.id },
             },
-            order: { validFrom: 'DESC' },
           });
         }
 
