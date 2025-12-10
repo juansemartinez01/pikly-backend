@@ -5,6 +5,8 @@ import {
   Entity,
   Index,
   JoinColumn,
+  JoinTable,
+  ManyToMany,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
@@ -52,9 +54,13 @@ export class Product {
   @Column({ type: 'jsonb', nullable: true })
   badges?: string[] | null; // ["Oferta","Premium"]
 
-  @ManyToOne(() => Category, { eager: true })
-  @JoinColumn({ name: 'category_id' })
-  category: Category;
+  @ManyToMany(() => Category, { eager: true })
+  @JoinTable({
+    name: 'product_category',
+    joinColumn: { name: 'product_id' },
+    inverseJoinColumn: { name: 'category_id' },
+  })
+  categories: Category[];
 
   @OneToMany(() => ProductImage, (img) => img.product, { cascade: true })
   images: ProductImage[];

@@ -115,6 +115,7 @@ export class ProductsService {
         'p.min_qty AS "minQty"',
         'p.max_qty AS "maxQty"',
         'p.active AS active',
+        'p.badges AS badges',
         `array_agg(c.name) AS "categoryNames"`,
         `array_agg(c.slug) AS "categorySlugs"`,
         'p.created_at AS "createdAt"',
