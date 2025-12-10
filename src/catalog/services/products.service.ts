@@ -394,7 +394,12 @@ export class ProductsService {
       );
     }
 
-    qb.groupBy('p.id');
+    qb.groupBy(`
+      p.id,
+      pp.price,
+      pp.compare_at_price
+    `);
+
 
     // Orden
     if (query.sort === 'price_asc')
