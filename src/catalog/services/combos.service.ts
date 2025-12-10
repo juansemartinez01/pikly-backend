@@ -79,7 +79,7 @@ export class CombosService {
 
       const saved = await comboRepo.save(combo);
 
-      // ------- Guardar Items -------
+      // ------- Items -------
       for (const i of dto.items) {
         const product = await this.productRepo.findOne({
           where: { id: i.productId },
@@ -96,13 +96,17 @@ export class CombosService {
         await itemRepo.save(item);
       }
 
-      // ------- Guardar relación PriceList -------
+      // ------- PriceLists -------
       if (dto.priceListIds?.length) {
         saved.priceLists = await this.priceListRepo.findByIds(dto.priceListIds);
         await comboRepo.save(saved);
       }
 
-      return this.adminById(saved.id);
+      // 🔥 DEVOLVER EL COMBO USANDO EL MANAGER DENTRO DE LA TRANSACCIÓN
+      return await comboRepo.findOne({
+        where: { id: saved.id },
+        relations: { items: { product: true }, priceLists: true },
+      });
     });
   }
 
