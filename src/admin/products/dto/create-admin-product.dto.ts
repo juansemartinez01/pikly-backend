@@ -58,9 +58,10 @@ export class CreateAdminProductDto {
   @IsOptional()
   active?: boolean = true;
 
-  @IsUUID()
-  @IsNotEmpty()
-  categoryId: string;
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  categoryIds?: string[];
 
   @IsArray()
   @IsOptional()

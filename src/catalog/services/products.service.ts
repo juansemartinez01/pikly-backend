@@ -104,7 +104,7 @@ export class ProductsService {
 
     const qb = this.productRepo
       .createQueryBuilder('p')
-      .leftJoin('p.category', 'c')
+      .leftJoin('p.categories', 'c')
       .select([
         'p.id AS id',
         'p.sku AS sku',
@@ -115,8 +115,8 @@ export class ProductsService {
         'p.min_qty AS "minQty"',
         'p.max_qty AS "maxQty"',
         'p.active AS active',
-        'c.name AS "categoryName"',
-        'c.slug AS "categorySlug"',
+        `array_agg(c.name) AS "categoryNames"`,
+        `array_agg(c.slug) AS "categorySlugs"`,
         'p.created_at AS "createdAt"',
         'p.updated_at AS "updatedAt"',
         'p.deleted_at AS "deletedAt"',
@@ -132,6 +132,8 @@ export class ProductsService {
 
     if (!params.includeDeleted) qb.andWhere('p.deleted_at IS NULL');
 
+    qb.groupBy('p.id');
+
     const [rows, total] = await Promise.all([
       qb.orderBy('p.created_at', 'DESC').offset(skip).limit(limit).getRawMany(),
       qb.getCount(),
@@ -139,11 +141,10 @@ export class ProductsService {
 
     return { page, limit, total, items: rows };
   }
-
   async adminById(id: string) {
     const p = await this.productRepo.findOne({
       where: { id },
-      relations: { images: true, category: true },
+      relations: { images: true, categories: true },
       withDeleted: true,
     });
     if (!p) throw new NotFoundException('Producto no encontrado');
@@ -161,11 +162,8 @@ export class ProductsService {
       throw new BadRequestException('SKU ya existente');
     }
 
-    // 1) Validar categoría
-    const category = await this.catRepo.findOne({
-      where: { id: dto.categoryId },
-    });
-    if (!category) throw new NotFoundException('Category not found');
+    // 1) Validar categorías (multi)
+    const categories = await this.resolveCategories(dto.categoryIds ?? []);
 
     // 2) Slug único (en base al slug enviado o al nombre)
     const baseSlug = dto.slug ?? dto.name;
@@ -183,7 +181,7 @@ export class ProductsService {
       maxQty: dto.maxQty ?? 9999,
       active: dto.active ?? true,
       badges: dto.badges ?? [],
-      category,
+      categories,
     });
 
     // 4) Transacción: guardar producto + imágenes + stock_current(0)
@@ -218,7 +216,7 @@ export class ProductsService {
 
         const out = await productRepo.findOne({
           where: { id: saved.id },
-          relations: { category: true, images: true },
+          relations: { categories: true, images: true },
         });
         return out!;
       });
@@ -251,7 +249,7 @@ export class ProductsService {
 
       const product = await repo.findOne({
         where: { id },
-        relations: { images: true, category: true },
+        relations: { images: true, categories: true },
         withDeleted: true,
       });
       if (!product) throw new NotFoundException('Producto no encontrado');
@@ -277,8 +275,9 @@ export class ProductsService {
       if (dto.active !== undefined) product.active = dto.active;
       if (dto.badges !== undefined) product.badges = dto.badges ?? [];
 
-      if (dto.categoryId || dto.categorySlug) {
-        product.category = await this.resolveCategory(dto);
+      // Multi-categoría (reemplazo total)
+      if (dto.categoryIds) {
+        product.categories = await this.resolveCategories(dto.categoryIds);
       }
 
       if (dto.slug !== undefined || dto.name) {
@@ -331,7 +330,6 @@ export class ProductsService {
     await this.productRepo.save(p);
     return this.adminById(id);
   }
-
   // ---------- PUBLIC: list / bySlug ----------
   async list(query: ProductQueryDto) {
     const { page, limit, skip } = normalizePageQuery(query);
@@ -355,7 +353,7 @@ export class ProductsService {
     // QueryBuilder con proyección mínima
     let qb = this.productRepo
       .createQueryBuilder('p')
-      .leftJoin('p.category', 'c')
+      .leftJoin('p.categories', 'c')
       .leftJoin(
         ProductPrice,
         'pp',
@@ -375,7 +373,7 @@ export class ProductsService {
         'p.min_qty AS "minQty"',
         'p.max_qty AS "maxQty"',
         'p.badges AS badges',
-        'c.slug AS "categorySlug"',
+        `array_agg(c.slug) AS "categorySlugs"`,
         'pp.price AS price',
         'pp.compare_at_price AS "compareAtPrice"',
       ])
@@ -394,6 +392,8 @@ export class ProductsService {
         { badge: query.badge },
       );
     }
+
+    qb.groupBy('p.id');
 
     // Orden
     if (query.sort === 'price_asc')
@@ -421,7 +421,7 @@ export class ProductsService {
         step: Number(r.step),
         minQty: Number(r.minQty),
         maxQty: Number(r.maxQty),
-        categorySlug: r.categorySlug,
+        categories: r.categorySlugs || [],
         price: r.price !== null ? Number(r.price) : null,
         compareAtPrice:
           r.compareAtPrice !== null ? Number(r.compareAtPrice) : null,
@@ -434,7 +434,7 @@ export class ProductsService {
   async bySlug(slug: string) {
     return this.productRepo.findOne({
       where: { slug, active: true },
-      relations: { images: true, category: true },
+      relations: { images: true, categories: true },
       select: {
         id: true,
         sku: true,
@@ -447,8 +447,20 @@ export class ProductsService {
         maxQty: true,
         badges: true,
         images: { id: true, url: true, alt: true, order: true },
-        category: { id: true, name: true, slug: true },
+        categories: { id: true, name: true, slug: true },
       },
     });
+  }
+
+  private async resolveCategories(categoryIds: string[]): Promise<Category[]> {
+    if (!categoryIds || categoryIds.length === 0) return [];
+
+    const cats = await this.catRepo.findByIds(categoryIds);
+
+    if (cats.length !== categoryIds.length) {
+      throw new BadRequestException('Una o más categorías no existen');
+    }
+
+    return cats;
   }
 }

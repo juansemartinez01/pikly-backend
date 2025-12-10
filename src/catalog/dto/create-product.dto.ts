@@ -42,8 +42,10 @@ export class CreateProductDto {
   @IsOptional() @IsArray() badges?: string[];
 
   // categoría: podés pasar ID o slug
-  @IsOptional() @IsUUID() categoryId?: string;
-  @IsOptional() @IsString() categorySlug?: string;
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  categoryIds?: string[];
 
   @IsOptional() @IsArray() images?: ProductImageDto[];
 }

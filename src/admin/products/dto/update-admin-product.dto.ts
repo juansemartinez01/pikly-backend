@@ -60,9 +60,10 @@ export class UpdateAdminProductDto {
   @IsOptional()
   active?: boolean;
 
-  @IsUUID()
   @IsOptional()
-  categoryId?: string;
+  @IsArray()
+  @IsUUID('all', { each: true })
+  categoryIds?: string[];
 
   @IsArray()
   @IsOptional()
