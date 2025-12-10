@@ -112,25 +112,26 @@ export class CombosService {
 
       const combo = await comboRepo.findOne({
         where: { id },
-        relations: { items: true },
+        relations: { items: { product: true } },
       });
       if (!combo) throw new NotFoundException('Combo no encontrado');
 
-      if (dto.name) combo.name = dto.name;
+      if (dto.name !== undefined) combo.name = dto.name;
       if (dto.description !== undefined)
         combo.description = dto.description ?? null;
       if (dto.price !== undefined) combo.price = dto.price;
       if (dto.badges !== undefined) combo.badges = dto.badges ?? [];
       if (dto.imageUrl !== undefined) combo.imageUrl = dto.imageUrl;
 
+      // slug dinámico
       if (dto.slug || dto.name) {
         const base = dto.slug ?? combo.slug ?? combo.name;
         combo.slug = await this.uniqueSlug(base, id);
       }
 
-      // ------ FIX: Reemplazo total de items ------
+      // --------- REEMPLAZO TOTAL DE ITEMS ---------
       if (dto.items) {
-        // borrar items existentes correctamente
+        // 🔥 Elimina TODOS los ítems del combo usando FK REAL
         await itemRepo
           .createQueryBuilder()
           .delete()
@@ -138,31 +139,28 @@ export class CombosService {
           .where('combo_id = :id', { id })
           .execute();
 
-
-        // insertar los nuevos
+        // Insertar los nuevos ítems
         for (const i of dto.items) {
           const product = await this.productRepo.findOne({
             where: { id: i.productId },
           });
           if (!product) throw new BadRequestException('Producto inválido');
 
-          const item = itemRepo.create({
+          const newItem = itemRepo.create({
             combo: combo,
             product,
             qty: i.qty,
             unitType: i.unitType,
           });
 
-          await itemRepo.save(item);
+          await itemRepo.save(newItem);
         }
       }
 
+      // Guardar combo modificado
       await comboRepo.save(combo);
-      return comboRepo.findOne({
-        where: { id },
-        relations: { items: { product: true } },
-      });
 
+      return this.adminById(id);
     });
   }
 
