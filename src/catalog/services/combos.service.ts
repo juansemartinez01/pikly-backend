@@ -97,7 +97,11 @@ export class CombosService {
         await itemRepo.save(item);
       }
 
-      return this.adminById(saved.id);
+      return comboRepo.findOne({
+        where: { id: saved.id },
+        relations: { items: { product: true } },
+      });
+
     });
   }
 
