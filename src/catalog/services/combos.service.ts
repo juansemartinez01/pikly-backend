@@ -101,7 +101,6 @@ export class CombosService {
         where: { id: saved.id },
         relations: { items: { product: true } },
       });
-
     });
   }
 
@@ -129,10 +128,17 @@ export class CombosService {
         combo.slug = await this.uniqueSlug(base, id);
       }
 
-      // Reemplazo total de items
+      // ------ FIX: Reemplazo total de items ------
       if (dto.items) {
-        await itemRepo.delete({ combo: { id } });
+        // borrar items existentes correctamente
+        await itemRepo
+          .createQueryBuilder()
+          .delete()
+          .from(ComboItem)
+          .where('combo_id = :id', { id })
+          .execute();
 
+        // insertar los nuevos
         for (const i of dto.items) {
           const product = await this.productRepo.findOne({
             where: { id: i.productId },
