@@ -168,14 +168,15 @@ export class CartService {
       if (dto.productId) {
         product = await m.getRepository(Product).findOne({
           where: { id: dto.productId, active: true },
-          relations: { category: true },
+          relations: { categories: true },
         });
         if (!product)
           throw new NotFoundException('Producto no encontrado o inactivo');
 
-        const cat = await m
-          .getRepository(Category)
-          .findOne({ where: { id: product.category.id, active: true } });
+        const cat = await m.getRepository(Category).findOne({
+          where: { id: product.categories[0]?.id, active: true },
+        });
+
         if (!cat) throw new BadRequestException('Categoría inactiva');
 
         this.assertQtyAgainstProduct(product, dto.qty);
