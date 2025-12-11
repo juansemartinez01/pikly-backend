@@ -88,7 +88,7 @@ export class ProductsService {
   // ---------- ADMIN: list ----------
   async adminList(params: {
     q?: string;
-    category?: string;
+    categories?: string[];
     includeDeleted?: boolean;
     active?: string;
     page: number;
@@ -124,8 +124,11 @@ export class ProductsService {
       ])
       .where('1=1');
 
-    if (params.category)
-      qb.andWhere('c.slug = :cslug', { cslug: params.category });
+    if (params.categories && params.categories.length > 0) {
+      qb.andWhere('c.slug IN (:...cslugs)', {
+        cslugs: params.categories,
+      });
+    }
     if (params.q)
       qb.andWhere('(p.name ILIKE :q OR p.slug ILIKE :q OR p.sku ILIKE :q)', {
         q: `%${params.q}%`,
@@ -399,7 +402,6 @@ export class ProductsService {
       pp.price,
       pp.compare_at_price
     `);
-
 
     // Orden
     if (query.sort === 'price_asc')

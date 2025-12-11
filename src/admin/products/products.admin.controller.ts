@@ -30,9 +30,17 @@ export class AdminProductsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    // 👇 parseo: "frutas,verduras"  => ["frutas","verduras"]
+    const categories = category
+      ? category
+          .split(',')
+          .map((c) => c.trim())
+          .filter((c) => c.length > 0)
+      : undefined;
+
     return this.productsService.adminList({
       q,
-      category,
+      categories,
       includeDeleted: includeDeleted === 'true',
       active,
       page: Number(page) || 1,
