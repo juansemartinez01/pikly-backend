@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { DeliverySlot } from '../entities/delivery-slot.entity';
+import { CreateDeliverySlotDto } from '../dto/create-delivery-slot.dto';
 
 @Injectable()
 export class DeliveryService {
@@ -29,6 +30,19 @@ export class DeliveryService {
       order: { startTime: 'ASC' },
       select: ['id', 'date', 'startTime', 'endTime', 'capacity', 'taken'],
     });
+  }
+
+  async create(dto: CreateDeliverySlotDto) {
+    const slot = this.slotRepo.create({
+      date: dto.date,
+      startTime: dto.startTime,
+      endTime: dto.endTime,
+      capacity: dto.capacity ?? 50,
+      taken: 0,
+      zoneId: dto.zoneId ?? null,
+    });
+
+    return this.slotRepo.save(slot);
   }
 
   async take(slotId: string) {
