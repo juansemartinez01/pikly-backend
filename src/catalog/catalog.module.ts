@@ -16,6 +16,12 @@ import { CombosService } from './services/combos.service';
 import { AdminCombosController } from './controllers/adminCombos.controller';
 import { OpsModule } from 'src/ops/ops.module';
 import { OpsService } from 'src/ops/services/ops.service';
+import { Order } from 'mercadopago';
+import { OrderItem } from 'src/orders/entities/order-item.entity';
+import { OrderStatusHistory } from 'src/orders/entities/order-status-history.entity';
+import { StockCurrent } from 'src/orders/entities/stock-current.entity';
+import { StockReservation } from 'src/orders/entities/stock-reservation.entity';
+import { DriverAssignment } from 'src/orders/entities/driver-assignment.entity';
 
 @Module({
   imports: [
@@ -27,10 +33,22 @@ import { OpsService } from 'src/ops/services/ops.service';
       ProductPrice,
       Combo,
       ComboItem,
+      Product,
+      Order,
+      OrderItem,
+      OrderStatusHistory,
+      StockCurrent,
+      StockReservation,
+      DriverAssignment,
     ]),
   ],
-  controllers: [CategoriesController, ProductsController, CombosController,AdminCombosController],
-  providers: [CategoriesService, ProductsService, CombosService,OpsService],
+  controllers: [
+    CategoriesController,
+    ProductsController,
+    CombosController,
+    AdminCombosController,
+  ],
+  providers: [CategoriesService, ProductsService, CombosService, OpsService],
   exports: [ProductsService],
 })
 export class CatalogModule {}

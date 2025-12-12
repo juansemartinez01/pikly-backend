@@ -6,13 +6,15 @@ import { Payment } from './entities/payment.entity';
 import { WebhookEvent } from './entities/webhook-event.entity';
 import { Order } from '../orders/entities/order.entity';
 import { OrderItem } from '../orders/entities/order-item.entity';
+import { AdminPaymentsService } from './services/admin-payments.service';
+import { AdminPaymentsController } from './controllers/admin-payments.controller';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Payment, WebhookEvent, Order, OrderItem]),
   ],
-  controllers: [MPController],
-  providers: [MPService],
-  exports: [MPService],
+  controllers: [MPController,AdminPaymentsController],
+  providers: [MPService,AdminPaymentsService],
+  exports: [MPService,AdminPaymentsService],
 })
 export class PaymentsModule {}
