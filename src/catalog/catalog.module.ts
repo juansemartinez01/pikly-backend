@@ -14,6 +14,8 @@ import { CategoriesService } from './services/categories.service';
 import { ProductsService } from './services/products.service';
 import { CombosService } from './services/combos.service';
 import { AdminCombosController } from './controllers/adminCombos.controller';
+import { OpsModule } from 'src/ops/ops.module';
+import { OpsService } from 'src/ops/services/ops.service';
 
 @Module({
   imports: [
@@ -28,7 +30,7 @@ import { AdminCombosController } from './controllers/adminCombos.controller';
     ]),
   ],
   controllers: [CategoriesController, ProductsController, CombosController,AdminCombosController],
-  providers: [CategoriesService, ProductsService, CombosService],
+  providers: [CategoriesService, ProductsService, CombosService,OpsService],
   exports: [ProductsService],
 })
 export class CatalogModule {}
