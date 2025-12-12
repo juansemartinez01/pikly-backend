@@ -17,6 +17,7 @@ import { CartItem } from '../cart/entities/cart-item.entity';
 import { Product } from '../catalog/entities/product.entity';
 import { Combo } from '../catalog/entities/combo.entity';
 import { PriceList } from '../catalog/entities/price-list.entity';
+import { DeliveryDayTemplate } from './entities/delivery-day-template.entity';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { PriceList } from '../catalog/entities/price-list.entity';
       Product,
       Combo,
       PriceList,
+      DeliveryDayTemplate,
     ]),
   ],
   controllers: [OrdersController, DeliveryController],
