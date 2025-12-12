@@ -311,4 +311,71 @@ export class OpsService {
       qty: Number(sc.qty),
     };
   }
+
+
+
+
+
+
+
+  
+
+  // ---------- NUEVO: STOCK DISPONIBLE PARA CLIENTE ----------
+  /**
+   * Devuelve, para cada producto, el stock disponible:
+   * available = stock_current - sum(reservas)
+   *
+   * Opcionalmente podés filtrar por warehouseId (null = depósito principal).
+   */
+  async listAvailableStock(warehouseId?: string | null) {
+    const whereSc: any = {};
+    if (warehouseId === 'null') warehouseId = null;
+    if (warehouseId !== undefined) {
+      whereSc.warehouseId = warehouseId;
+    }
+
+    // 1) Traemos el stock_current con producto
+    const scRows = await this.stockRepo.find({
+      where: whereSc,
+      relations: { product: true },
+    });
+
+    if (!scRows.length) {
+      // Si no hay stock_current, no tiene sentido calcular reservas
+      return [];
+    }
+
+    // 2) Traemos todas las reservas (por ahora no filtramos por estado de la orden)
+    const reservations = await this.resRepo.find({
+      relations: { product: true, order: true },
+    });
+
+    // 3) Sumamos reservas por producto
+    const reservedByProduct = new Map<string, number>();
+    for (const r of reservations) {
+      const pid = r.product.id;
+      const prev = reservedByProduct.get(pid) ?? 0;
+      reservedByProduct.set(pid, prev + Number(r.qty));
+    }
+
+    // 4) Armamos respuesta: stock_current - reservado
+    return scRows.map((r) => {
+      const reserved = reservedByProduct.get(r.product.id) ?? 0;
+      const current = Number(r.qty);
+      const available = current - reserved;
+
+      return {
+        product: {
+          id: r.product.id,
+          sku: (r.product as any).sku ?? null,
+          name: r.product.name,
+        },
+        warehouseId: r.warehouseId ?? null,
+        stockCurrent: current,
+        reserved,
+        available, // podés hacer Math.max(0, available) si no querés negativos
+      };
+    });
+  }
+
 }
