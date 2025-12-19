@@ -382,21 +382,19 @@ export class ProductsService {
         'pp.price AS price',
         'pp.compare_at_price AS "compareAtPrice"',
         // NUEVO: agregamos las imágenes como JSON ordenadas por "order"
-      `
-      COALESCE(
+        `
+       COALESCE(
         jsonb_agg(
           DISTINCT jsonb_build_object(
-            'id', img.id,
-            'url', img.url,
-            'alt', img.alt,
-            'order', img."order"
+            'id', "img"."id",
+            'url', "img"."url",
+            'alt', "img"."alt",
+            'order', "img"."order"
           )
-          ORDER BY img."order"
-        ) FILTER (WHERE img.id IS NOT NULL),
+        ) FILTER (WHERE "img"."id" IS NOT NULL),
         '[]'::jsonb
       ) AS images
       `,
-    
       ])
       .where('p.active = true');
 
