@@ -367,6 +367,7 @@ export class ProductsService {
           now,
         },
       )
+      .leftJoin(ProductImage, 'img', 'img.product_id = p.id')
       .select([
         'p.id AS id',
         'p.sku AS sku',
@@ -380,6 +381,22 @@ export class ProductsService {
         `array_agg(c.slug) AS "categorySlugs"`,
         'pp.price AS price',
         'pp.compare_at_price AS "compareAtPrice"',
+        // NUEVO: agregamos las imágenes como JSON ordenadas por "order"
+      `
+      COALESCE(
+        jsonb_agg(
+          DISTINCT jsonb_build_object(
+            'id', img.id,
+            'url', img.url,
+            'alt', img.alt,
+            'order', img."order"
+          )
+          ORDER BY img."order"
+        ) FILTER (WHERE img.id IS NOT NULL),
+        '[]'::jsonb
+      ) AS images
+      `,
+    
       ])
       .where('p.active = true');
 
@@ -434,6 +451,12 @@ export class ProductsService {
         compareAtPrice:
           r.compareAtPrice !== null ? Number(r.compareAtPrice) : null,
         badges: r.badges || [],
+        images: (r.images || []).map((img: any) => ({
+          id: img.id,
+          url: img.url,
+          alt: img.alt,
+          order: Number(img.order ?? 0),
+        })),
       })),
       priceList: priceList?.name || null,
     };
